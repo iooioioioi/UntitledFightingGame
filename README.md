@@ -44,6 +44,21 @@ Assumptions
 
 Never replace or restructure working systems based solely on README information.
 
+## Repository Limitations
+
+Some Roblox instances may exist in Studio and may not be represented in the Rojo source tree.
+
+Examples may include:
+- RemoteEvents
+- RemoteFunctions
+- Folders
+- Testing assets
+- Placeholder instances
+
+Do not assume these objects are missing simply because they are not present in the repository.
+
+If an object appears to be referenced but its creation cannot be found, ask whether it exists in Studio before reporting it as a bug or architectural issue.
+
 GAME CONCEPT
 
 Simple freeform PvP combat.
