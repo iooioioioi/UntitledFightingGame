@@ -1,107 +1,162 @@
-# 🥊 Untitled Fighting Game
-> A TSB / Jujutsu Shenanigans inspired PvP fighting game built in Roblox Studio using Rojo. Early in development — this is the base foundation.
+Untitled Fighting Game
 
-> KEEP IN MIND THIS INFORMATION MIGHT BE INNACURATE IN THE FUTURE AFTER UPDATES | TAKE THIS INFORMATION WITH A GRAIN OF SALT AND USE WHATEVER U NEED OF IT.
----
+A TSB / Jujutsu Shenanigans inspired PvP fighting game built in Roblox Studio using Rojo.
 
-## 📖 Concept
+The project is currently in early development and focuses on establishing a strong, scalable foundation before expanding into additional mechanics and content.
 
-Simple freeform PvP. Find a player, land a **4-hit M1 combo** on them. No abilities, no gimmicks — just movement and combat reads.
+IMPORTANT
 
-- Hits **1–3** deal light damage and nudge the opponent
-- Hit **4** is the **finisher** — big damage, ragdolls and launches them
-- **Block** (F) to tank frontal hits, forcing opponents to reposition
-- **Dash** (Q) in your movement direction to dodge or close distance
-- Kills earn **Coins** that save to your account
+This README provides project context, design goals, and architecture guidance.
 
-Skill comes from reading your opponent — when to dash in, when to block, when to go for the finisher.
+The codebase is always the source of truth.
 
----
+If information in this README conflicts with the current implementation, trust the code over the documentation.
 
-## 🗂️ Script Overview
+Before implementing new functionality:
 
-### ServerScriptService
-| Script | What it does |
-|---|---|
-| `CombatHandler` | Server-side brain. Hit detection, damage, ragdoll, kill/death tracking, coins, spawn protection. Server-authoritative so it can't be exploited |
-| `DataManager` | Saves and loads each player's Kills, Deaths and Coins via DataStore |
+Inspect existing systems first.
+Reuse existing modules and patterns whenever possible.
+Extend existing systems instead of creating replacements.
+Avoid duplicating functionality.
+PROJECT STRUCTURE MAPPING
+Roblox Services
+SERVER SIDED CODE GOES INTO ServerScriptService
+CLIENT SIDED CODE GOES INTO StarterPlayerScripts (StarterPlayer.StarterPlayerScripts)
+MODULES LOCATION CAN DEPEND ON WHETHER THEY NEED TO BE ACCESSIBLE TO THE CLIENT OR NOT. MOST SHARED MODULES SHOULD BE LOCATED IN ReplicatedStorage.Modules
+Equivalent Folders Inside /src
+/src/server = ServerScriptService
+/src/client = StarterPlayerScripts
+/src/shared/Modules = ReplicatedStorage.Modules
+Rules
+Server code must never run on the client.
+Client code must never handle authoritative game logic.
+Shared modules must be safe for both environments.
+Damage, combat validation, currencies, inventories, and progression systems must remain server authoritative.
+Never trust client-reported combat results, damage values, or rewards.
+ARCHITECTURE PRIORITY
 
-### ReplicatedStorage/Modules
-| Script | What it does |
-|---|---|
-| `CombatConfig` | Single config file for every tunable value — damage, hitbox size, dash speed, animation IDs, sound IDs. Change numbers here, not in the scripts |
+When making implementation decisions, use the following priority order:
 
-### StarterPlayerScripts
-| Script | What it does |
-|---|---|
-| `CombatClient` | Mouse click to punch, block input, M1 animations and sound playback |
-| `DashController` | Q to dash in your movement direction, steers with your camera, smooth eased speed curve |
-| `CameraShake` | Screen shake on hits, stronger shake on finisher |
-| `HitboxVisualizer` | Debug only — shows the punch hitbox as a red box in front of every player |
-| `CombatUI` | Floating combo counter (2x, 3x, FINISH!) and damage numbers above hit targets |
+Existing codebase
+Project rules/instructions
+README documentation
+Assumptions
 
-### StarterGui
-| Script | What it does |
-|---|---|
-| `CombatHUD` | Personal health bar and spawn shield indicator |
+Never replace or restructure working systems based solely on README information.
 
----
+GAME CONCEPT
 
-## ⚙️ Controls
+Simple freeform PvP combat.
 
-| Action | Input |
-|---|---|
-| Punch (M1) | Left click |
-| Block | Hold `F` |
-| Dash | `Q` while moving |
+Players spawn into an arena and fight using basic movement, positioning, blocking, dashing, and melee combat.
 
----
+The gameplay focuses on mechanical skill, timing, spacing, and reading opponents rather than ability spam or complex gimmicks.
 
-## 🔧 Configuration
+Core combat loop:
 
-Everything tuneable lives in `ReplicatedStorage/Modules/CombatConfig`:
+Find an opponent
+Land a 4-hit M1 combo
+Use movement and dashes to create openings
+Block incoming attacks
+Finish opponents to earn rewards
 
-```lua
-Config.DAMAGE        = {10, 10, 10, 30}  -- damage per hit, index 4 = finisher
+Skill expression should come from decision-making and execution rather than random mechanics.
+
+COMBAT DESIGN
+M1 Combo
+
+Players attack using a 4-hit combo chain.
+
+Hits 1–3
+Deal light damage
+Slightly push the target
+Continue combo progression
+Hit 4 (Finisher)
+Deals significantly more damage
+Launches the target backwards
+Applies ragdoll
+Serves as the combo finisher
+Kill Finisher
+
+If any hit would kill the target:
+
+The hit becomes a kill finisher regardless of combo count
+The target is launched much further than normal
+The target is ragdolled dramatically
+The elimination should feel impactful and satisfying
+DEFENSIVE OPTIONS
+Block (F)
+
+Holding F allows players to block incoming frontal attacks.
+
+Blocking should:
+
+Reduce or prevent frontal damage
+Reward correct timing and positioning
+Force attackers to reposition or bait reactions
+Dash (Q)
+
+Players can dash in their current movement direction.
+
+Dashing should:
+
+Create offensive opportunities
+Allow repositioning
+Enable evasive movement
+Reward movement skill and timing
+CONTROLS
+Action	Input
+Punch (M1)	Left Click
+Block	Hold F
+Dash	Q While Moving
+PROGRESSION
+Coins
+
+Players earn Coins for eliminations.
+
+Coins should:
+
+Be awarded server-side
+Save between sessions
+Never be controlled by the client
+
+Future systems may expand the use of Coins, but the currency should remain secure and server authoritative.
+
+CONFIGURATION
+
+Combat values should remain configurable through:
+
+ReplicatedStorage/Modules/CombatConfig
+
+Example configuration:
+
+Config.DAMAGE        = {10, 10, 10, 30}
 Config.HITBOX_SIZE   = Vector3.new(3.5, 4, 2.5)
 Config.DASH_POWER    = 100
 Config.DASH_COOLDOWN = 0.9
 Config.RAGDOLL_TIME  = 2.5
 Config.COINS_PER_KILL = 10
-Config.SHOW_HITBOX   = false  -- toggle hitbox debug visualizer
+Config.SHOW_HITBOX   = false
 
 Config.SOUNDS = {
-    M1_1 = "", M1_2 = "", M1_3 = "",
-    FINISHER = "", BLOCK = "", DASH = "",
+    M1_1 = "",
+    M1_2 = "",
+    M1_3 = "",
+    FINISHER = "",
+    BLOCK = "",
+    DASH = "",
 }
-```
 
-Animation IDs are set in `CombatClient` (`ANIM_IDS` table) and `DashController` (`Config.DASH_ANIM_ID`).
+All gameplay tuning should be performed through configuration values whenever practical rather than hardcoding numbers throughout the project.
 
----
+DEVELOPMENT GOALS
 
-## 📦 Project Setup
+Current focus:
 
-Built with **Rojo** and **VS Code**. All source files live inside `src/`.
+Stable combat foundation
+Clean client/server separation
+Server-authoritative gameplay
+Maintainable architecture
+Scalable systems for future expansion
 
-```
-src/
-├── ServerScriptService/
-│   ├── CombatHandler
-│   └── DataManager
-├── ReplicatedStorage/
-│   ├── Modules/
-│   │   └── CombatConfig
-│   └── Remotes/
-│       └── (RemoteEvents — see below)
-└── StarterPlayerScripts/
-    ├── CombatClient
-    ├── DashController
-    ├── CameraShake
-    ├── HitboxVisualizer
-    └── CombatUI
-```
-
-## 🚧 Status
-
-This is an early base — the combat loop is functional but the game is not finished. Planned additions include VFX, more polish, a round system and additional mechanics built on top of the M1 foundation.
+Priority should always be maintaining a clean and extensible codebase over implementing features quickly.
