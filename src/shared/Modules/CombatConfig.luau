@@ -40,20 +40,30 @@ Config.FINISHER_COLLISION_THRESHOLD = 8  -- velocity magnitude to confirm collis
 Config.FINISHER_STICK_TIME     = 0.2   -- seconds body sticks to wall before falling
 Config.FINISHER_RESPAWN_DELAY  = 0.8   -- seconds after collision before respawn
 Config.FINISHER_BODY_LINGER    = 1.5   -- seconds cosmetic body stays after respawn
+Config.FINISHER_CINEMATIC_DURATION = 0.4  -- seconds both players locked during finisher
 Config.RESPAWN_DELAY_NORMAL = 3  -- seconds before respawn on normal death
 
 -- Dash
-Config.DASH_POWER_FORWARD      = 160
-Config.DASH_POWER_SIDE         = 120
-Config.DASH_POWER_BACKWARD     = 130
+-- Dash
+Config.DASH_POWER_FORWARD      = 150
+Config.DASH_POWER_SIDE         = 100
+Config.DASH_POWER_BACKWARD     = 140
 
-Config.DASH_DURATION_FORWARD   = 0.5
-Config.DASH_DURATION_SIDE      = 0.25
+Config.DASH_DURATION_FORWARD   = 0.55
+Config.DASH_DURATION_SIDE      = 0.2
 Config.DASH_DURATION_BACKWARD  = 0.35
 
 Config.DASH_COOLDOWN_FORWARD   = 7
 Config.DASH_COOLDOWN_SIDE      = 4
 Config.DASH_COOLDOWN_BACKWARD  = 4
+
+-- Front dash hitbox + end-lag
+Config.DASH_HIT_DAMAGE         = 5
+Config.DASH_HIT_STUN           = 0.3
+Config.DASH_HIT_BLOCK_DAMAGE   = 0.0001
+Config.DASH_HITBOX_START       = 0.08   -- progress % before hitbox activates
+Config.DASH_END_LAG            = 0.18   -- seconds of end-lag on missed front dash
+Config.DASH_HIT_MAX_DISTANCE   = 8      -- studs max for dash hit validation
 
 Config.MAX_HIT_DISTANCE        = 15
 

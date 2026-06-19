@@ -7,7 +7,7 @@ local DataStoreService  = game:GetService("DataStoreService")
 local HttpService        = game:GetService("HttpService")
 local RunService         = game:GetService("RunService")
 
-local ACConfig = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("AntiCheatConfig"))
+local ACConfig = require(game:GetService("ServerScriptService"):WaitForChild("AntiCheatConfig"))local ACConfig = require(game:GetService("ServerScriptService"):WaitForChild("AntiCheatConfig"))
 
 local store = DataStoreService:GetDataStore(ACConfig.DATASTORE_NAME)
 

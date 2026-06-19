@@ -27,6 +27,9 @@ local remoteNames = {
 	"FinisherLaunch",
 	"BlockBroken",
 	"ComboReset",
+	"DashHit",
+    "DashCancelled",
+    "DashState",
 }
 
 for _, name in ipairs(remoteNames) do

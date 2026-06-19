@@ -244,13 +244,24 @@ end)
 -- ──────────────────────────────────────────────
 -- RESPAWN CLEANUP
 -- ──────────────────────────────────────────────
-player.CharacterAdded:Connect(function()
+player.CharacterAdded:Connect(function(character)
 	if Config.DEBUG then print("[DEBUG] Character added, resetting combat state") end
 	canM1         = false
 	isBlocking    = false
 	comboCooldown = false
 	loadedTracks  = {}
 	blockTrack    = nil
+
+	-- Preload block animation so first press has no delay
+	local human = character:WaitForChild("Humanoid")
+	if human and AnimationUtil.isValidAnimId(BLOCK_ANIM_ID) then
+		local track = AnimationUtil.loadTrack(human, BLOCK_ANIM_ID, Enum.AnimationPriority.Action, true)
+		if track then
+			blockTrack = track
+			if Config.DEBUG then print("[BLOCK DEBUG] Block animation preloaded on spawn") end
+		end
+	end
+
 	task.wait(0.1)
 	canM1 = true
 end)

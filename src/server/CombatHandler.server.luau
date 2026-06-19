@@ -17,6 +17,10 @@ local FinisherLaunch  = Remotes:WaitForChild("FinisherLaunch")
 local BlockBroken     = Remotes:WaitForChild("BlockBroken")
 local ComboReset      = Remotes:WaitForChild("ComboReset")
 
+local DashHit = Remotes:WaitForChild("DashHit")
+local DashCancelled = Remotes:WaitForChild("DashCancelled")
+local DashState = Remotes:WaitForChild("DashState")
+
 local playerData = {}
 
 local function getData(player)
@@ -27,10 +31,12 @@ local function getData(player)
 			ragdolled        = false,
 			blocking         = false,
 			protected        = false,
-			finisherState    = false, -- true = launched, untouchable
-			comboCooldown    = false, -- true = post-M4 lockout
-			damageImmune     = false, -- post-ragdoll damage immunity
-			stunImmune       = false, -- post-ragdoll stun immunity
+			finisherState    = false,
+			comboCooldown    = false,
+			damageImmune     = false,
+			stunImmune       = false,
+			dashState        = nil,   -- "front", "side", "back", or nil
+			lastDashHit      = 0,
 			lastM1           = 0,
 			resetThread      = nil,
 		}
@@ -88,6 +94,58 @@ local function disableRagdoll(character)
 	humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 	RagdollEvent:FireAllClients(character, false)
 end
+
+
+-- ──────────────────────────────────────────────
+-- STUN POSITION CORRECTION
+-- Polls during stun and snaps player back if they move too far
+-- Exempt threshold accounts for legitimate nudge distance
+-- ──────────────────────────────────────────────
+local STUN_CORRECTION_THRESHOLD = 2    -- studs before correction triggers
+local STUN_CORRECTION_INTERVAL  = 0.05 -- poll every 50ms during stun
+
+local function applyStunLock(victimPlayer, victimChar, stunDuration)
+	local victimHRP = victimChar:FindFirstChild("HumanoidRootPart")
+	if not victimHRP then return end
+
+	local lockedPosition = victimHRP.Position
+	local elapsed        = 0
+	local conn
+
+	conn = RunService.Heartbeat:Connect(function(dt)
+		elapsed += dt
+
+		-- Stop if stun expired or character gone
+		if elapsed >= stunDuration or not victimChar or not victimChar.Parent then
+			conn:Disconnect()
+			return
+		end
+
+		local vd = getData(victimPlayer)
+		if not vd.stunned then
+			conn:Disconnect()
+			return
+		end
+
+		local hrp = victimChar:FindFirstChild("HumanoidRootPart")
+		if not hrp then
+			conn:Disconnect()
+			return
+		end
+
+		local delta = (hrp.Position - lockedPosition).Magnitude
+		if delta > STUN_CORRECTION_THRESHOLD then
+			-- Snap back — preserve Y to avoid floor clipping
+			hrp.CFrame = CFrame.new(
+				lockedPosition.X,
+				hrp.Position.Y,
+				lockedPosition.Z
+			)
+			hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+		end
+	end)
+end
+
 
 -- ──────────────────────────────────────────────
 -- ANGLE CHECKS
@@ -177,11 +235,18 @@ end
 -- ──────────────────────────────────────────────
 -- FINISHER LAUNCH
 -- ──────────────────────────────────────────────
+local CINEMATIC_DURATION    = 0.4   -- seconds both players are locked
+local ATTACKER_RELEASE_DELAY = 0.1  -- seconds after victim launch before attacker freed
+
 local function handleFinisherLaunch(attacker, victimPlayer, victimChar, victimHuman, isM4Finisher)
-	local victimHRP = victimChar:FindFirstChild("HumanoidRootPart")
+	local victimHRP    = victimChar:FindFirstChild("HumanoidRootPart")
 	local attackerChar = attacker.Character
 	local attackerHRP  = attackerChar and attackerChar:FindFirstChild("HumanoidRootPart")
 	if not victimHRP or not attackerHRP then return end
+
+	local attackerHuman = attackerChar:FindFirstChildOfClass("Humanoid")
+	local victimHumanoid = victimChar:FindFirstChildOfClass("Humanoid")
+	if not attackerHuman or not victimHumanoid then return end
 
 	-- Lock kill credit immediately
 	local tag = Instance.new("ObjectValue")
@@ -197,77 +262,120 @@ local function handleFinisherLaunch(attacker, victimPlayer, victimChar, victimHu
 		m4Tag.Parent = tag
 	end
 
-	-- Set victim to 1 HP and mark as finisher state
+	-- Set victim to 1 HP and mark states
 	victimHuman.Health = 1
 	local vd = getData(victimPlayer)
+	local ad = getData(attacker)
 	vd.finisherState = true
 	vd.ragdolled     = true
+	vd.protected     = true
+	ad.protected     = true  -- attacker invincible during cinematic
 
-	-- Enable ragdoll
-	enableRagdoll(victimChar)
+	-- ── CINEMATIC LOCK-IN ──
+	-- Disable movement on both
+	attackerHuman.WalkSpeed   = 0
+	attackerHuman.JumpPower   = 0
+	attackerHuman.AutoRotate  = false
+	victimHumanoid.WalkSpeed  = 0
+	victimHumanoid.JumpPower  = 0
+	victimHumanoid.AutoRotate = false
 
-	-- Calculate launch direction with upward angle
+	-- Anchor both HRPs
+	attackerHRP.Anchored = true
+	victimHRP.Anchored   = true
+
+	-- Snap victim to face attacker
 	local flatDir = (victimHRP.Position - attackerHRP.Position)
 	flatDir = Vector3.new(flatDir.X, 0, flatDir.Z).Unit
 
-	local force, lift
-	if isM4Finisher then
-		force = Config.FINISHER_FORCE_M4
-		lift  = Config.FINISHER_LIFT_M4
-	else
-		force = Config.FINISHER_FORCE_NORMAL
-		lift  = Config.FINISHER_LIFT_NORMAL
-	end
-
-	-- Rotate victim to face away from attacker (back faces travel direction)
 	victimHRP.CFrame = CFrame.new(victimHRP.Position, victimHRP.Position + flatDir)
 		* CFrame.Angles(0, math.pi, 0)
 
-	-- Apply launch velocity server side
-	victimHRP.AssemblyLinearVelocity = flatDir * force + Vector3.new(0, lift, 0)
+	-- Fire clients for cinematic visuals
+	FinisherLaunch:FireAllClients(victimChar, flatDir, isM4Finisher, true) -- true = cinematic phase
 
-	-- Fire clients for visual effects
-	FinisherLaunch:FireAllClients(victimChar, flatDir, force, isM4Finisher)
-
-	-- Server polls for collision
-	local pollConn
-	local stuckHandled = false
-	pollConn = RunService.Heartbeat:Connect(function()
-		if not victimChar or not victimChar.Parent or not victimHRP or not victimHRP.Parent then
-			pollConn:Disconnect()
+	-- ── IMPACT MOMENT after cinematic delay ──
+	task.delay(CINEMATIC_DURATION, function()
+		if not victimChar or not victimChar.Parent then
+			-- Victim gone — clean up attacker
+			attackerHRP.Anchored      = false
+			attackerHuman.WalkSpeed   = 16
+			attackerHuman.JumpPower   = 50
+			attackerHuman.AutoRotate  = true
+			ad.protected              = false
 			return
 		end
 
-		local velocity = victimHRP.AssemblyLinearVelocity
-		local speed    = velocity.Magnitude
+		-- Unanchor victim and enable ragdoll
+		victimHRP.Anchored = false
+		enableRagdoll(victimChar)
 
-		if speed < Config.FINISHER_COLLISION_THRESHOLD and not stuckHandled then
-			stuckHandled = true
-			pollConn:Disconnect()
+		-- Calculate and apply launch force
+		local force, lift
+		if isM4Finisher then
+			force = Config.FINISHER_FORCE_M4
+			lift  = Config.FINISHER_LIFT_M4
+		else
+			force = Config.FINISHER_FORCE_NORMAL
+			lift  = Config.FINISHER_LIFT_NORMAL
+		end
 
-			-- Stick briefly then fall
-			victimHRP.Anchored = true
-			task.delay(Config.FINISHER_STICK_TIME, function()
-				if victimHRP and victimHRP.Parent then
-					victimHRP.Anchored = false
-				end
+		victimHRP.AssemblyLinearVelocity = flatDir * force + Vector3.new(0, lift, 0)
 
-				-- Deal final kill blow
-				task.delay(0.1, function()
-					if victimHuman and victimChar and victimChar.Parent then
-						victimHuman:TakeDamage(1)
+		-- Fire clients for launch visuals
+		FinisherLaunch:FireAllClients(victimChar, flatDir, isM4Finisher, false) -- false = launch phase
+
+		-- Release attacker slightly after victim launches
+		task.delay(ATTACKER_RELEASE_DELAY, function()
+			if attackerHRP and attackerHRP.Parent then
+				attackerHRP.Anchored      = false
+			end
+			if attackerHuman and attackerHuman.Parent then
+				attackerHuman.WalkSpeed   = 16
+				attackerHuman.JumpPower   = 50
+				attackerHuman.AutoRotate  = true
+			end
+			ad.protected = false
+		end)
+
+		-- Poll for collision
+		local pollConn
+		local stuckHandled = false
+		pollConn = RunService.Heartbeat:Connect(function()
+			if not victimChar or not victimChar.Parent
+				or not victimHRP or not victimHRP.Parent then
+				pollConn:Disconnect()
+				return
+			end
+
+			local speed = victimHRP.AssemblyLinearVelocity.Magnitude
+
+			if speed < Config.FINISHER_COLLISION_THRESHOLD and not stuckHandled then
+				stuckHandled = true
+				pollConn:Disconnect()
+
+				-- Stick briefly then fall
+				victimHRP.Anchored = true
+				task.delay(Config.FINISHER_STICK_TIME, function()
+					if victimHRP and victimHRP.Parent then
+						victimHRP.Anchored = false
 					end
+					task.delay(0.1, function()
+						if victimHuman and victimChar and victimChar.Parent then
+							victimHuman:TakeDamage(1)
+						end
+					end)
 				end)
-			end)
-		end
-	end)
+			end
+		end)
 
-	-- Safety fallback: if collision never detected after 10s force kill
-	task.delay(10, function()
-		if vd.finisherState and victimHuman and victimChar and victimChar.Parent then
-			pollConn:Disconnect()
-			victimHuman:TakeDamage(1)
-		end
+		-- Safety fallback: force kill after 10s if no collision detected
+		task.delay(10, function()
+			if vd.finisherState and victimHuman and victimChar and victimChar.Parent then
+				pollConn:Disconnect()
+				victimHuman:TakeDamage(1)
+			end
+		end)
 	end)
 end
 
@@ -346,10 +454,10 @@ local function applyHit(attacker, attackerChar, hit, comboIndex)
 			BlockBroken:FireClient(victimPlayer)
 
 			-- Apply stun to victim
-			local vd = getData(victimPlayer)
-			vd.blocking = false
+			local vd.blocking = false
 			if not stunImmune then
 				vd.stunned = true
+				applyStunLock(victimPlayer, victimChar, stunTime)
 				task.delay(stunTime, function() vd.stunned = false end)
 			end
 
@@ -452,7 +560,7 @@ local function applyHit(attacker, attackerChar, hit, comboIndex)
 		local dir = (victimHRP.Position - myHRP.Position).Unit
 		victimHRP.CFrame = victimHRP.CFrame + dir * Config.KNOCKBACK_FORCE
 
-		if isNPC then
+        if isNPC then
 			local nd = getNPCData(victimChar)
 			nd.stunned = true
 			task.delay(Config.STUN_TIME, function() nd.stunned = false end)
@@ -460,6 +568,7 @@ local function applyHit(attacker, attackerChar, hit, comboIndex)
 			local vd = getData(victimPlayer)
 			if not stunImmune then
 				vd.stunned = true
+				applyStunLock(victimPlayer, victimChar, Config.STUN_TIME)
 				task.delay(Config.STUN_TIME, function() vd.stunned = false end)
 			end
 		end
@@ -497,7 +606,11 @@ local function onCharacterDied(player, character)
 		local dStats = player:FindFirstChild("leaderstats")
 		if dStats then dStats.Deaths.Value += 1 end
 
-		local data = getData(player)
+        local data = getData(player)
+
+		-- Capture finisher state BEFORE clearing so respawn delay is correct
+		local wasFinisher = data.finisherState
+
 		data.ragdolled     = false
 		data.stunned       = false
 		data.blocking      = false
@@ -506,23 +619,22 @@ local function onCharacterDied(player, character)
 		data.finisherState = false
 		data.damageImmune  = false
 		data.stunImmune    = false
+		data.dashState = nil
+        DashCancelled:FireClient(attacker)
 
 		if data.resetThread then
 			task.cancel(data.resetThread)
 			data.resetThread = nil
 		end
 
-		-- Respawn delay — finisher deaths are handled by handleFinisherLaunch
-		-- This covers normal deaths only
-		local vd = getData(player)
-		local delay = vd.finisherState
+		local respawnDelay = wasFinisher
 			and Config.FINISHER_RESPAWN_DELAY
 			or  Config.RESPAWN_DELAY_NORMAL
 
-		task.delay(delay, function()
+		task.delay(respawnDelay, function()
 			if not player or not player.Parent then return end
 			player:LoadCharacter()
-		end)
+		end)    
 	end)
 end
 
@@ -556,10 +668,13 @@ end
 -- BLOCK STATE
 -- ──────────────────────────────────────────────
 BlockState.OnServerEvent:Connect(function(player, isBlocking)
-	local data = getData(player)
-	if data.ragdolled or data.finisherState then return end
+	-- Validate arg type
+	if type(isBlocking) ~= "boolean" then return end
 
-	-- Validate with anticheat before accepting
+	local data = getData(attacker)
+	if data.stunned or data.ragdolled or data.blocking or data.comboCooldown then return end
+	if data.dashState == "front" then return end
+
 	local legitimate = AntiCheat.validateBlock(player, isBlocking)
 	if not legitimate then return end
 
@@ -636,6 +751,128 @@ M1Hit.OnServerEvent:Connect(function(attacker)
 end)
 
 -- ──────────────────────────────────────────────
+-- DASH HIT (front dash offensive hitbox)
+-- ──────────────────────────────────────────────
+DashHit.OnServerEvent:Connect(function(attacker)
+	local character = attacker.Character
+	if not character then return end
+
+	local human = character:FindFirstChildOfClass("Humanoid")
+	if not human or human.Health <= 0 then return end
+
+	local data = getData(attacker)
+
+	-- Must be in a front dash
+	if data.dashState ~= "front" then return end
+
+	-- Rate limit: can't fire faster than dash cooldown allows
+	local now = tick()
+	if (now - data.lastDashHit) < (Config.DASH_COOLDOWN_FORWARD * 0.9) then return end
+	data.lastDashHit = now
+
+	local hits = getHitbox(character)
+	if #hits == 0 then return end
+
+	for _, hit in ipairs(hits) do
+		local victimChar   = hit.character
+		local victimHuman  = hit.humanoid
+		local victimPlayer = hit.player
+		local isNPC        = hit.isNPC
+
+		if isNPC then continue end -- dash hit only affects players for now
+
+		local vd = getData(victimPlayer)
+		if vd.ragdolled or vd.finisherState or vd.protected then continue end
+		if victimHuman.Health <= 0 then continue end
+
+		local myHRP     = character:FindFirstChild("HumanoidRootPart")
+		local victimHRP = victimChar:FindFirstChild("HumanoidRootPart")
+		if not myHRP or not victimHRP then continue end
+
+		-- Distance check
+		local hitboxCenter = (myHRP.CFrame * Config.HITBOX_OFFSET).Position
+		if (victimHRP.Position - hitboxCenter).Magnitude > Config.DASH_HIT_MAX_DISTANCE then continue end
+
+		-- Check if victim is blocking
+		if vd.blocking then
+			if isHittingFront(myHRP, victimHRP) then
+				-- Blocked: near-zero damage, cancel dash, attacker gets end-lag
+				victimHuman:TakeDamage(Config.DASH_HIT_BLOCK_DAMAGE)
+				PlaySound:FireAllClients(victimHRP.Position, "BLOCK")
+				-- Signal client to cancel dash with end-lag
+				data.dashState = nil
+				DashCancelled:FireClient(attacker)
+				return
+			elseif isHittingBack(myHRP, victimHRP) then
+				-- Block break from dash
+				local damage = math.floor(Config.DASH_HIT_DAMAGE * Config.BLOCK_BREAK_MULTIPLIER)
+				local willKill = (victimHuman.Health - damage) <= 0
+				if willKill then
+					handleFinisherLaunch(attacker, victimPlayer, victimChar, victimHuman, false)
+					data.dashState = nil    
+                    DashCancelled:FireClient(attacker)
+					return
+				end
+				victimHuman:TakeDamage(damage)
+				BlockBroken:FireClient(victimPlayer)
+				vd.blocking = false
+				if not vd.stunImmune then
+					vd.stunned = true
+					applyStunLock(victimPlayer, victimChar,
+						Config.DASH_HIT_STUN * Config.BLOCK_BREAK_MULTIPLIER)
+					task.delay(Config.DASH_HIT_STUN * Config.BLOCK_BREAK_MULTIPLIER,
+						function() vd.stunned = false end)
+				end
+				PlaySound:FireAllClients(victimHRP.Position, "BLOCK_BREAK")
+				data.dashState = nil
+				DashCancelled:FireClient(attacker)
+				return
+			end
+		end
+
+		-- Normal dash hit
+		local willKill = (victimHuman.Health - Config.DASH_HIT_DAMAGE) <= 0
+		if willKill then
+			handleFinisherLaunch(attacker, victimPlayer, victimChar, victimHuman, false)
+			data.dashState = nil
+            DashCancelled:FireClient(attacker)
+			return
+		end
+
+		local tag = Instance.new("ObjectValue")
+		tag.Name   = "creator"
+		tag.Value  = attacker
+		tag.Parent = victimHuman
+		Debris:AddItem(tag, 2)
+
+		victimHuman:TakeDamage(Config.DASH_HIT_DAMAGE)
+		PlaySound:FireAllClients(victimHRP.Position, "M1_1")
+
+		if not vd.stunImmune then
+			vd.stunned = true
+			applyStunLock(victimPlayer, victimChar, Config.DASH_HIT_STUN)
+			task.delay(Config.DASH_HIT_STUN, function() vd.stunned = false end)
+		end
+
+		-- Cancel dash on hit
+		data.dashState = nil
+		return
+	end
+end)
+
+
+-- ──────────────────────────────────────────────
+-- DASH STATE
+-- ──────────────────────────────────────────────
+DashState.OnServerEvent:Connect(function(player, state)
+	if type(state) ~= "string" and state ~= nil then return end
+	local validStates = { front = true, side = true, back = true }
+	if state ~= nil and not validStates[state] then return end
+	local data = getData(player)
+	data.dashState = state
+end)
+
+-- ──────────────────────────────────────────────
 -- PLAYER ADDED / REMOVED
 -- ──────────────────────────────────────────────
 Players.PlayerAdded:Connect(function(player)
@@ -649,6 +886,8 @@ Players.PlayerAdded:Connect(function(player)
 		comboCooldown    = false,
 		damageImmune     = false,
 		stunImmune       = false,
+		dashState        = nil,
+		lastDashHit      = 0,
 		lastM1           = 0,
 		resetThread      = nil,
 	}
