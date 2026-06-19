@@ -17,12 +17,24 @@ local function loadData(player)
 		coins  = data.coins  or 0
 	end
 
-	local leaderstats = player:WaitForChild("leaderstats", 10)
-	if not leaderstats then return end
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name   = "leaderstats"
+	leaderstats.Parent = player
 
-	leaderstats:WaitForChild("Kills").Value  = kills
-	leaderstats:WaitForChild("Deaths").Value = deaths
-	leaderstats:WaitForChild("Coins").Value  = coins
+	local killsVal  = Instance.new("IntValue")
+	killsVal.Name   = "Kills"
+	killsVal.Value  = kills
+	killsVal.Parent = leaderstats
+
+	local deathsVal  = Instance.new("IntValue")
+	deathsVal.Name   = "Deaths"
+	deathsVal.Value  = deaths
+	deathsVal.Parent = leaderstats
+
+	local coinsVal  = Instance.new("IntValue")
+	coinsVal.Name   = "Coins"
+	coinsVal.Value  = coins
+	coinsVal.Parent = leaderstats
 end
 
 -- Only ever called once per player on leave

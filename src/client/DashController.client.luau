@@ -7,12 +7,9 @@ local RunService        = game:GetService("RunService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local Config = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CombatConfig"))
+local AnimationUtil = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("AnimationUtil"))
 
-local DASH_ANIM_ID = "rbxassetid://"
-
-local function isValidAnimId(id)
-	return id and id ~= "" and id:match("^rbxassetid://%d+$") ~= nil
-end
+local DASH_ANIM_ID = "rbxassetid://" -- TODO: fill in dash animation ID
 
 local dashTrack  = nil
 local canDash    = true
@@ -33,21 +30,10 @@ local function getDashTrack()
 	if not char then return nil end
 	local human = char:FindFirstChildOfClass("Humanoid")
 	if not human then return nil end
-	if not isValidAnimId(DASH_ANIM_ID) then return nil end
 	if dashTrack then return dashTrack end
-
-	local anim = Instance.new("Animation")
-	anim.AnimationId = DASH_ANIM_ID
-	local ok, track = pcall(function()
-		return human.Animator:LoadAnimation(anim)
-	end)
-	if ok and track then
-		track.Priority = Enum.AnimationPriority.Action
-		track.Looped   = false
-		dashTrack      = track
-		return track
-	end
-	return nil
+	local track = AnimationUtil.loadTrack(human, DASH_ANIM_ID)
+	if track then dashTrack = track end
+	return track
 end
 
 local function playDashSound()

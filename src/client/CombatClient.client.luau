@@ -7,6 +7,8 @@ local player   = Players.LocalPlayer
 local Remotes  = ReplicatedStorage:WaitForChild("Remotes")
 local Config   = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CombatConfig"))
 
+local AnimationUtil = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("AnimationUtil"))
+
 local M1Hit        = Remotes:WaitForChild("M1Hit")
 local M1Animation  = Remotes:WaitForChild("M1Animation")
 local RagdollEvent = Remotes:WaitForChild("RagdollEvent")
@@ -27,11 +29,6 @@ local BLOCK_ANIM_ID = "rbxassetid://80663798062489"
 -- ──────────────────────────────────────────────
 -- HELPERS
 -- ──────────────────────────────────────────────
-local function isValidAnimId(id)
-	if not id or id == "" then return false end
-	if id:find("YOUR_ID") then return false end
-	return id:match("^rbxassetid://%d+$") ~= nil
-end
 
 local loadedTracks = {}
 local blockTrack   = nil
@@ -40,64 +37,48 @@ local isBlocking   = false
 
 local function getTrack(human, index)
 	local id = ANIM_IDS[index]
-	if not isValidAnimId(id) then return nil end
+	if not AnimationUtil.isValidAnimId(id) then return nil end
 	if loadedTracks[index] then return loadedTracks[index] end
-
-	local anim = Instance.new("Animation")
-	anim.AnimationId = id
-	local ok, track = pcall(function()
-		return human.Animator:LoadAnimation(anim)
-	end)
-	if ok and track then
-		track.Priority = Enum.AnimationPriority.Action
-		loadedTracks[index] = track
-		return track
-	end
-	return nil
+	local track = AnimationUtil.loadTrack(human, id)
+	if track then loadedTracks[index] = track end
+	return track
 end
 
 local function getBlockTrack()
 	local char  = player.Character
 	if not char then
-		print("[BLOCK DEBUG] No character found")
+		if Config.DEBUG then print("[BLOCK DEBUG] No character found") end
 		return nil
 	end
 	local human = char:FindFirstChildOfClass("Humanoid")
 	if not human then
-		print("[BLOCK DEBUG] No humanoid found")
+		if Config.DEBUG then print("[BLOCK DEBUG] No humanoid found") end
 		return nil
 	end
 
-	if not isValidAnimId(BLOCK_ANIM_ID) then
-		print("[BLOCK DEBUG] Block anim ID is invalid:", BLOCK_ANIM_ID)
+	if not AnimationUtil.isValidAnimId(BLOCK_ANIM_ID) then
+		if Config.DEBUG then print("[BLOCK DEBUG] Block anim ID is invalid:", BLOCK_ANIM_ID) end
 		return nil
 	end
 
-	-- Always reload if blockTrack belongs to old humanoid
 	if blockTrack then
 		local ok = pcall(function() return blockTrack.Length end)
 		if ok then
 			return blockTrack
 		else
-			print("[BLOCK DEBUG] Old track invalid, reloading")
+			if Config.DEBUG then print("[BLOCK DEBUG] Old track invalid, reloading") end
 			blockTrack = nil
 		end
 	end
 
-	print("[BLOCK DEBUG] Loading block animation:", BLOCK_ANIM_ID)
-	local anim = Instance.new("Animation")
-	anim.AnimationId = BLOCK_ANIM_ID
-	local ok, track = pcall(function()
-		return human.Animator:LoadAnimation(anim)
-	end)
-	if ok and track then
-		print("[BLOCK DEBUG] Block animation loaded successfully")
-		track.Priority = Enum.AnimationPriority.Action
-		track.Looped   = true
-		blockTrack     = track
+	if Config.DEBUG then print("[BLOCK DEBUG] Loading block animation:", BLOCK_ANIM_ID) end
+	local track = AnimationUtil.loadTrack(human, BLOCK_ANIM_ID, Enum.AnimationPriority.Action, true)
+	if track then
+		if Config.DEBUG then print("[BLOCK DEBUG] Block animation loaded successfully") end
+		blockTrack = track
 		return track
 	else
-		print("[BLOCK DEBUG] Failed to load block animation:", track)
+		if Config.DEBUG then print("[BLOCK DEBUG] Failed to load block animation") end
 		return nil
 	end
 end
@@ -105,20 +86,26 @@ end
 -- ──────────────────────────────────────────────
 -- SOUND — reads from CombatConfig centrally
 -- ──────────────────────────────────────────────
-local soundCache = {}
-
 local function playSound(position, key)
 	local id = Config.SOUNDS and Config.SOUNDS[key]
 	if not id or id == "" then return end
-	local sound = soundCache[key]
-	if not sound then
-		sound = Instance.new("Sound")
-		sound.SoundId            = id
-		sound.RollOffMaxDistance = 60
-		sound.Parent             = workspace
-		soundCache[key]          = sound
-	end
+
+	local part = Instance.new("Part")
+	part.Anchored    = true
+	part.CanCollide  = false
+	part.CastShadow  = false
+	part.Transparency = 1
+	part.Size        = Vector3.new(1, 1, 1)
+	part.Position    = position
+	part.Parent      = workspace
+
+	local sound = Instance.new("Sound")
+	sound.SoundId            = id
+	sound.RollOffMaxDistance = 60
+	sound.Parent             = part
 	sound:Play()
+
+	game:GetService("Debris"):AddItem(part, 3)
 end
 
 PlaySound.OnClientEvent:Connect(function(position, key)
@@ -164,20 +151,21 @@ local function stopBlock()
 end
 
 UserInputService.InputBegan:Connect(function(input, processed)
-	print("[INPUT DEBUG] Key pressed:", input.KeyCode, "| Processed:", processed)
+	if Config.DEBUG then print("[INPUT DEBUG] Key pressed:", input.KeyCode, "| Processed:", processed) end
 	if processed then return end
 	if input.KeyCode == Enum.KeyCode.F then
-		print("[BLOCK DEBUG] F key detected in InputBegan")
+		if Config.DEBUG then print("[BLOCK DEBUG] F key detected in InputBegan") end
 		startBlock()
 	end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.F then
-		print("[BLOCK DEBUG] F key released")
+		if Config.DEBUG then print("[BLOCK DEBUG] F key released") end
 		stopBlock()
 	end
 end)
+
 
 -- ──────────────────────────────────────────────
 -- ANIMATION EVENTS
@@ -199,7 +187,7 @@ end)
 -- RESPAWN CLEANUP
 -- ──────────────────────────────────────────────
 player.CharacterAdded:Connect(function()
-	print("[DEBUG] Character added, resetting combat state")
+	if Config.DEBUG then print("[DEBUG] Character added, resetting combat state") end
 	canM1        = false
 	isBlocking   = false
 	loadedTracks = {}

@@ -143,6 +143,19 @@ local npcData = {}  -- [model] = { stunned, ragdolled }
 local function getNPCData(model)
 	if not npcData[model] then
 		npcData[model] = { stunned = false, ragdolled = false }
+
+		local humanoid = model:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.Died:Connect(function()
+				npcData[model] = nil
+			end)
+		end
+
+		model.AncestryChanged:Connect(function()
+			if not model.Parent then
+				npcData[model] = nil
+			end
+		end)
 	end
 	return npcData[model]
 end
@@ -178,6 +191,9 @@ local function applyHit(attacker, attackerChar, hit, isFinisher, comboIndex)
 	local myHRP     = attackerChar:FindFirstChild("HumanoidRootPart")
 	local victimHRP = victimChar:FindFirstChild("HumanoidRootPart")
 	if not myHRP or not victimHRP then return end
+    -- Distance sanity check
+	local hitboxCenter = (myHRP.CFrame * Config.HITBOX_OFFSET).Position
+	if (victimHRP.Position - hitboxCenter).Magnitude > Config.MAX_HIT_DISTANCE then return end
 
 	-- Block check (players only)
 	if blocking and isHittingFront(myHRP, victimHRP) then
@@ -202,8 +218,8 @@ local function applyHit(attacker, attackerChar, hit, isFinisher, comboIndex)
 	-- Sound + UI feedback
 	local soundKey = isFinisher and "FINISHER" or ("M1_" .. comboIndex)
 	PlaySound:FireAllClients(victimHRP.Position, soundKey)
-	ShowCombo:FireAllClients(victimHRP.Position, comboIndex, isFinisher)
-	ShowDamage:FireAllClients(victimHRP.Position, damage)
+	-- ShowCombo:FireAllClients(victimHRP.Position, comboIndex, isFinisher)
+	-- ShowDamage:FireAllClients(victimHRP.Position, damage)
 
 	-- Apply physics effects
 	if isFinisher then
@@ -312,7 +328,7 @@ M1Hit.OnServerEvent:Connect(function(attacker)
 	if data.stunned or data.ragdolled or data.blocking then return end
 
 	local now = tick()
-	if (now - data.lastM1) < (Config.M1_COOLDOWN * 0.75) then return end
+	if (now - data.lastM1) < (Config.M1_COOLDOWN * 0.9) then return end
 	data.lastM1 = now
 
 	data.combo   = (data.combo % Config.MAX_COMBO) + 1
@@ -332,6 +348,22 @@ M1Hit.OnServerEvent:Connect(function(attacker)
 			data.resetThread = nil
 		end)
 	end
+
+-- Early rejection: attacker must be near at least one character
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+	local hitboxCenter = (hrp.CFrame * Config.HITBOX_OFFSET).Position
+	local anyNearby = false
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= attacker and p.Character then
+			local vHRP = p.Character:FindFirstChild("HumanoidRootPart")
+			if vHRP and (vHRP.Position - hitboxCenter).Magnitude <= Config.MAX_HIT_DISTANCE then
+				anyNearby = true
+				break
+			end
+		end
+	end
+	if not anyNearby then return end
 
 	M1Animation:FireAllClients(attacker, comboIndex, isFinisher)
 
@@ -368,19 +400,6 @@ Players.PlayerAdded:Connect(function(player)
 		lastM1      = 0,
 		resetThread = nil,
 	}
-
-	local leaderstats = Instance.new("Folder")
-	leaderstats.Name  = "leaderstats"
-	leaderstats.Parent = player
-
-	local kills  = Instance.new("IntValue")
-	kills.Name   = "Kills"; kills.Value = 0; kills.Parent = leaderstats
-
-	local deaths = Instance.new("IntValue")
-	deaths.Name  = "Deaths"; deaths.Value = 0; deaths.Parent = leaderstats
-
-	local coins  = Instance.new("IntValue")
-	coins.Name   = "Coins"; coins.Value = 0; coins.Parent = leaderstats
 
 	player.CharacterAdded:Connect(function(character)
 		onCharacterDied(player, character)

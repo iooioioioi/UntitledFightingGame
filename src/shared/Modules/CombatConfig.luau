@@ -33,6 +33,8 @@ Config.DASH_POWER    = 140
 Config.DASH_COOLDOWN = 3
 Config.DASH_DURATION = 0.4
 
+Config.MAX_HIT_DISTANCE = 15  -- studs; accounts for latency + hitbox reach
+
 -- Spawn protection
 Config.SPAWN_PROTECTION = 2
 
@@ -40,7 +42,8 @@ Config.SPAWN_PROTECTION = 2
 Config.COINS_PER_KILL = 10
 
 -- Debug
-Config.SHOW_HITBOX   = false
+Config.SHOW_HITBOX = false
+Config.DEBUG       = false
 
 -- Sound IDs — leave blank to skip, fill in when you have them
 Config.SOUNDS = {
