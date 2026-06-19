@@ -1,65 +1,85 @@
 local Config = {}
 
 -- Combo
-Config.MAX_COMBO     = 4
-Config.COMBO_WINDOW  = 0.85
-Config.DAMAGE        = {10, 10, 10, 30}
+Config.MAX_COMBO        = 4
+Config.COMBO_WINDOW     = 1.4    -- seconds before combo resets if no hit lands
+Config.M4_COOLDOWN      = 1.7    -- attacker cannot M1 after completing full combo
+Config.DAMAGE           = {8, 8, 8, 20}
 
 -- Hitbox
-Config.HITBOX_SIZE   = Vector3.new(3.5, 4, 2.5)
-Config.HITBOX_OFFSET = CFrame.new(0, 0, -2.8)
+Config.HITBOX_SIZE      = Vector3.new(3.5, 4, 2.5)
+Config.HITBOX_OFFSET    = CFrame.new(0, 0, -2.8)
 
 -- Knockback
-Config.KNOCKBACK_FORCE  = 0.2
-Config.FINISH_KNOCKBACK = 180   -- big launch on kill finisher
-Config.FINISH_LIFT      = 60    -- lots of upward pop
-
--- Ragdoll
-Config.RAGDOLL_TIME  = 2.5
-
--- Stun
-Config.STUN_TIME     = 0.3
-
--- M1 cooldown
-Config.M1_COOLDOWN   = 0.38
+Config.KNOCKBACK_FORCE  = 0.2    -- studs nudge on regular M1s
+Config.M4_KNOCKBACK     = 2      -- studs nudge on M4 before ragdoll
 
 -- Block
-Config.BLOCK_DAMAGE_REDUCTION = 0.0   -- 100% blocked from front
-Config.BLOCK_ANGLE   = 60             -- degrees either side of facing = blocked
+Config.BLOCK_ANGLE          = 60     -- degrees: front block cone
+Config.BLOCK_BREAK_ANGLE    = 150    -- degrees: must be genuinely behind victim
+Config.BLOCK_HIT_DAMAGE     = 2      -- damage when hitting a blocking player from front
+Config.BLOCK_BREAK_MULTIPLIER = 1.2  -- damage + stun multiplier on block break
+
+-- Stun
+Config.STUN_TIME            = 0.2    -- base stun duration
+Config.POST_RAGDOLL_DAMAGE_IMMUNITY = 0.04   -- damage immunity after unragdoll
+Config.POST_RAGDOLL_STUN_IMMUNITY   = 0.12   -- stun immunity after unragdoll
+
+-- Ragdoll
+Config.RAGDOLL_TIME         = 1.3    -- M4 ground ragdoll duration
+
+-- M1 cooldown
+Config.M1_COOLDOWN          = 0.35
+
+-- Finisher (kill hit)
+Config.FINISHER_FORCE_NORMAL   = 120   -- launch force for M1-3 finisher
+Config.FINISHER_LIFT_NORMAL    = 55    -- upward component for M1-3 finisher
+Config.FINISHER_FORCE_M4       = 280   -- launch force for M4 finisher
+Config.FINISHER_LIFT_M4        = 35    -- lower angle = less lift, more horizontal
+Config.FINISHER_COLLISION_THRESHOLD = 8  -- velocity magnitude to confirm collision
+Config.FINISHER_STICK_TIME     = 0.2   -- seconds body sticks to wall before falling
+Config.FINISHER_RESPAWN_DELAY  = 0.8   -- seconds after collision before respawn
+Config.FINISHER_BODY_LINGER    = 1.5   -- seconds cosmetic body stays after respawn
+Config.RESPAWN_DELAY_NORMAL = 3  -- seconds before respawn on normal death
 
 -- Dash
-Config.DASH_POWER_FORWARD  = 160  -- slightly faster than current 140
-Config.DASH_POWER_SIDE     = 120  -- shorter pop
-Config.DASH_POWER_BACKWARD = 130  -- between side and forward
+Config.DASH_POWER_FORWARD      = 160
+Config.DASH_POWER_SIDE         = 120
+Config.DASH_POWER_BACKWARD     = 130
 
-Config.DASH_DURATION_FORWARD  = 0.5
-Config.DASH_DURATION_SIDE     = 0.25
-Config.DASH_DURATION_BACKWARD = 0.35
+Config.DASH_DURATION_FORWARD   = 0.5
+Config.DASH_DURATION_SIDE      = 0.25
+Config.DASH_DURATION_BACKWARD  = 0.35
 
-Config.DASH_COOLDOWN_FORWARD  = 7
-Config.DASH_COOLDOWN_SIDE     = 4
-Config.DASH_COOLDOWN_BACKWARD = 4
+Config.DASH_COOLDOWN_FORWARD   = 7
+Config.DASH_COOLDOWN_SIDE      = 4
+Config.DASH_COOLDOWN_BACKWARD  = 4
 
-Config.MAX_HIT_DISTANCE = 15  -- studs; accounts for latency + hitbox reach
+Config.MAX_HIT_DISTANCE        = 15
 
 -- Spawn protection
-Config.SPAWN_PROTECTION = 2
+Config.SPAWN_PROTECTION        = 0.3
+Config.SPAWN_FREEZE_DURATION   = 0.1
 
 -- Currency
-Config.COINS_PER_KILL = 10
+Config.COINS_PER_KILL_NORMAL      = 10
+Config.COINS_PER_KILL_M4_FINISHER = 15   -- 1.5x
 
 -- Debug
 Config.SHOW_HITBOX = false
 Config.DEBUG       = false
 
--- Sound IDs — leave blank to skip, fill in when you have them
+-- Sound IDs
 Config.SOUNDS = {
-	M1_1     = "",   -- regular hit 1
-	M1_2     = "",   -- regular hit 2
-	M1_3     = "",   -- regular hit 3
-	FINISHER = "",   -- finisher hit
-	BLOCK    = "",   -- blocked hit
-	DASH     = "",   -- dash sound
+	M1_1        = "",
+	M1_2        = "",
+	M1_3        = "",
+	M1_4        = "",
+	FINISHER    = "",
+	FINISHER_M4 = "",
+	BLOCK       = "",
+	BLOCK_BREAK = "",
+	DASH        = "",
 }
 
 return Config
