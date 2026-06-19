@@ -11,8 +11,6 @@ local RagdollEvent = Remotes:WaitForChild("RagdollEvent")
 local HitboxViz    = Remotes:WaitForChild("HitboxViz")
 local BlockState   = Remotes:WaitForChild("BlockState")
 local PlaySound    = Remotes:WaitForChild("PlaySound")
-local ShowCombo    = Remotes:WaitForChild("ShowCombo")
-local ShowDamage   = Remotes:WaitForChild("ShowDamage")
 
 local playerData = {}
 
@@ -349,23 +347,7 @@ M1Hit.OnServerEvent:Connect(function(attacker)
 		end)
 	end
 
--- Early rejection: attacker must be near at least one character
-	local hrp = character:FindFirstChild("HumanoidRootPart")
-	if not hrp then return end
-	local hitboxCenter = (hrp.CFrame * Config.HITBOX_OFFSET).Position
-	local anyNearby = false
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= attacker and p.Character then
-			local vHRP = p.Character:FindFirstChild("HumanoidRootPart")
-			if vHRP and (vHRP.Position - hitboxCenter).Magnitude <= Config.MAX_HIT_DISTANCE then
-				anyNearby = true
-				break
-			end
-		end
-	end
-	if not anyNearby then return end
-
-	M1Animation:FireAllClients(attacker, comboIndex, isFinisher)
+    M1Animation:FireAllClients(attacker, comboIndex, isFinisher)
 
 	local function tryHitbox()
 		local hits = getHitbox(character)

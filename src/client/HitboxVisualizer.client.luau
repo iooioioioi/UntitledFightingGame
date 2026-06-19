@@ -4,6 +4,9 @@ local RunService        = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config  = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CombatConfig"))
+
+if not Config.SHOW_HITBOX then return end
+
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local HitboxViz = Remotes:WaitForChild("HitboxViz")
 local player  = Players.LocalPlayer

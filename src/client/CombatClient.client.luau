@@ -8,6 +8,7 @@ local Remotes  = ReplicatedStorage:WaitForChild("Remotes")
 local Config   = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CombatConfig"))
 
 local AnimationUtil = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("AnimationUtil"))
+local AnimationConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("AnimationConfig"))
 
 local M1Hit        = Remotes:WaitForChild("M1Hit")
 local M1Animation  = Remotes:WaitForChild("M1Animation")
@@ -15,16 +16,8 @@ local RagdollEvent = Remotes:WaitForChild("RagdollEvent")
 local BlockState   = Remotes:WaitForChild("BlockState")
 local PlaySound    = Remotes:WaitForChild("PlaySound")
 
--- M1 animation IDs — fill in when ready, leave as "" to skip
-local ANIM_IDS = {
-	[1] = "rbxassetid://135625480489610",  -- M1 hit 1
-	[2] = "",  -- M1 hit 2
-	[3] = "",  -- M1 hit 3
-	[4] = "",  -- M1 hit 4 / finisher
-}
-
--- Block animation ID
-local BLOCK_ANIM_ID = "rbxassetid://80663798062489"
+local ANIM_IDS      = AnimationConfig.M1
+local BLOCK_ANIM_ID = AnimationConfig.BLOCK
 
 -- ──────────────────────────────────────────────
 -- HELPERS

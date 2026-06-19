@@ -24,6 +24,9 @@ local remoteNames = {
 	"PlaySound",
 	"ShowCombo",
 	"ShowDamage",
+	"FinisherLaunch",
+	"BlockBroken",
+	"ComboReset",
 }
 
 for _, name in ipairs(remoteNames) do

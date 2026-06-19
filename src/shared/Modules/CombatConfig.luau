@@ -13,7 +13,6 @@ Config.HITBOX_OFFSET = CFrame.new(0, 0, -2.8)
 Config.KNOCKBACK_FORCE  = 0.2
 Config.FINISH_KNOCKBACK = 180   -- big launch on kill finisher
 Config.FINISH_LIFT      = 60    -- lots of upward pop
-Config.NORMAL_KNOCKBACK = 0.2   -- studs nudge on regular hits
 
 -- Ragdoll
 Config.RAGDOLL_TIME  = 2.5
@@ -29,9 +28,17 @@ Config.BLOCK_DAMAGE_REDUCTION = 0.0   -- 100% blocked from front
 Config.BLOCK_ANGLE   = 60             -- degrees either side of facing = blocked
 
 -- Dash
-Config.DASH_POWER    = 140
-Config.DASH_COOLDOWN = 3
-Config.DASH_DURATION = 0.4
+Config.DASH_POWER_FORWARD  = 160  -- slightly faster than current 140
+Config.DASH_POWER_SIDE     = 120  -- shorter pop
+Config.DASH_POWER_BACKWARD = 130  -- between side and forward
+
+Config.DASH_DURATION_FORWARD  = 0.5
+Config.DASH_DURATION_SIDE     = 0.25
+Config.DASH_DURATION_BACKWARD = 0.35
+
+Config.DASH_COOLDOWN_FORWARD  = 7
+Config.DASH_COOLDOWN_SIDE     = 4
+Config.DASH_COOLDOWN_BACKWARD = 4
 
 Config.MAX_HIT_DISTANCE = 15  -- studs; accounts for latency + hitbox reach
 

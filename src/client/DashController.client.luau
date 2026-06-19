@@ -8,19 +8,16 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local Config = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CombatConfig"))
 local AnimationUtil = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("AnimationUtil"))
+local AnimationConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("AnimationConfig"))
 
-local DASH_ANIM_ID = "rbxassetid://" -- TODO: fill in dash animation ID
+local DASH_ANIM_ID = AnimationConfig.DASH
 
-local dashTrack  = nil
-local canDash    = true
-local isDashing  = false
+local dashTrack       = nil
+local canDashForward  = true
+local canDashSide     = true
+local canDashBackward = true
+local isDashing       = false
 
--- Share dash state with CombatClient via a module or just a bindable
--- We use a shared table in ReplicatedStorage so CombatClient can read it
-local sharedState = {
-	isDashing  = false,
-	isBlocking = false,
-}
 -- Store on player so other local scripts can access it
 player:SetAttribute("IsDashing",  false)
 player:SetAttribute("IsBlocking", false)
@@ -36,15 +33,46 @@ local function getDashTrack()
 	return track
 end
 
+-- Returns "forward", "backward", "side", or nil if standing still
+local function getDashDirection()
+	local w = UserInputService:IsKeyDown(Enum.KeyCode.W)
+	local s = UserInputService:IsKeyDown(Enum.KeyCode.S)
+	local a = UserInputService:IsKeyDown(Enum.KeyCode.A)
+	local d = UserInputService:IsKeyDown(Enum.KeyCode.D)
+
+	if not (w or s or a or d) then return nil end
+
+	if w and not s then return "forward" end
+	if s and not w then return "backward" end
+	return "side"
+end
+
+
 local function playDashSound()
 	local id = Config.SOUNDS and Config.SOUNDS.DASH
 	if not id or id == "" then return end
+
+	local char = player.Character
+	local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+	local pos  = hrp and hrp.Position or Vector3.new(0, 0, 0)
+
+	local part = Instance.new("Part")
+	part.Anchored     = true
+	part.CanCollide   = false
+	part.CastShadow   = false
+	part.Transparency = 1
+	part.Size         = Vector3.new(1, 1, 1)
+	part.Position     = pos
+	part.Parent       = workspace
+
 	local sound = Instance.new("Sound")
-	sound.SoundId = id
-	sound.Volume  = 1
-	sound.Parent  = workspace
+	sound.SoundId            = id
+	sound.RollOffMaxDistance = 60
+	sound.Volume             = 1
+	sound.Parent             = part
 	sound:Play()
-	game:GetService("Debris"):AddItem(sound, 3)
+
+	game:GetService("Debris"):AddItem(part, 3)
 end
 
 local function getInputDirection()
@@ -79,8 +107,8 @@ local function getWorldDirection()
 end
 
 local function doDash()
-	if not canDash then return end
-	if player:GetAttribute("IsBlocking") then return end  -- no dash while blocking
+	if player:GetAttribute("IsBlocking") then return end
+	if isDashing then return end
 
 	local char  = player.Character
 	if not char then return end
@@ -88,9 +116,39 @@ local function doDash()
 	local human = char:FindFirstChildOfClass("Humanoid")
 	if not hrp or not human or human.Health <= 0 then return end
 
-	if not getInputDirection() then return end  -- standing still
+	local direction = getDashDirection()
+	if not direction then return end
 
-	canDash   = false
+	-- Check correct cooldown
+	if direction == "forward"  and not canDashForward  then return end
+	if direction == "backward" and not canDashBackward then return end
+	if direction == "side"     and not canDashSide     then return end
+
+	-- Pick values based on direction
+	local dashPower, dashDuration, dashCooldown
+	if direction == "forward" then
+		dashPower    = Config.DASH_POWER_FORWARD
+		dashDuration = Config.DASH_DURATION_FORWARD
+		dashCooldown = Config.DASH_COOLDOWN_FORWARD
+	elseif direction == "backward" then
+		dashPower    = Config.DASH_POWER_BACKWARD
+		dashDuration = Config.DASH_DURATION_BACKWARD
+		dashCooldown = Config.DASH_COOLDOWN_BACKWARD
+	else
+		dashPower    = Config.DASH_POWER_SIDE
+		dashDuration = Config.DASH_DURATION_SIDE
+		dashCooldown = Config.DASH_COOLDOWN_SIDE
+	end
+
+	-- Lock the correct cooldown
+	if direction == "forward" then
+		canDashForward = false
+	elseif direction == "backward" then
+		canDashBackward = false
+	else
+		canDashSide = false
+	end
+
 	isDashing = true
 	player:SetAttribute("IsDashing", true)
 
@@ -100,17 +158,12 @@ local function doDash()
 
 	local elapsed = 0
 
-	-- Easing function: smooth ramp up, hold, smooth ramp down
-	-- Input: progress 0-1, Output: speed multiplier 0-1
 	local function easedSpeed(progress)
 		if progress < 0.2 then
-			-- Ramp up over first 20%
 			return progress / 0.2
 		elseif progress < 0.65 then
-			-- Hold at peak for middle 45%
 			return 1
 		else
-			-- Smooth ramp down over last 35% using sine ease
 			local t = (progress - 0.65) / 0.35
 			return 1 - math.sin(t * math.pi * 0.5)
 		end
@@ -127,12 +180,11 @@ local function doDash()
 			return
 		end
 
-		if elapsed >= Config.DASH_DURATION then
+		if elapsed >= dashDuration then
 			conn:Disconnect()
 			isDashing = false
 			player:SetAttribute("IsDashing", false)
 
-			-- Bleed off remaining horizontal velocity smoothly
 			local vel = hrp.AssemblyLinearVelocity
 			hrp.AssemblyLinearVelocity = Vector3.new(
 				vel.X * 0.3,
@@ -142,11 +194,9 @@ local function doDash()
 			return
 		end
 
-		local progress = elapsed / Config.DASH_DURATION
-		local speed    = easedSpeed(progress) * Config.DASH_POWER
+		local progress = elapsed / dashDuration
+		local speed    = easedSpeed(progress) * dashPower
 
-		-- Re-evaluate direction every frame from current camera
-		-- This is what lets you steer mid-dash in shiftlock
 		local dir = getWorldDirection()
 		if dir then
 			hrp.AssemblyLinearVelocity = Vector3.new(
@@ -155,7 +205,6 @@ local function doDash()
 				dir.Z * speed
 			)
 		else
-			-- Player let go of keys mid-dash — bleed out
 			local vel = hrp.AssemblyLinearVelocity
 			hrp.AssemblyLinearVelocity = Vector3.new(
 				vel.X * 0.85,
@@ -165,8 +214,14 @@ local function doDash()
 		end
 	end)
 
-	task.delay(Config.DASH_COOLDOWN, function()
-		canDash = true
+	task.delay(dashCooldown, function()
+		if direction == "forward" then
+			canDashForward = true
+		elseif direction == "backward" then
+			canDashBackward = true
+		else
+			canDashSide = true
+		end
 	end)
 end
 
@@ -178,8 +233,10 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 player.CharacterAdded:Connect(function()
-	dashTrack = nil
-	canDash   = true
-	isDashing = false
+	dashTrack       = nil
+	canDashForward  = true
+	canDashSide     = true
+	canDashBackward = true
+	isDashing       = false
 	player:SetAttribute("IsDashing", false)
 end)
